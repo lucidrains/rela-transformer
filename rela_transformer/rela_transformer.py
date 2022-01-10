@@ -95,7 +95,7 @@ class ReLATransformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                ReLA(dim = dim, heads = heads, dim_head = dim_head, num_memory_kv = num_memory_kv),
+                ReLA(dim = dim, heads = heads, dim_head = dim_head, num_memory_kv = num_memory_kv, causal = causal),
                 FeedForward(dim = dim, mult = ff_mult) if not no_ff else None
             ]))
 
