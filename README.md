@@ -1,6 +1,6 @@
 <img src="./rela.png" width="400px"></img>
 
-## ReLA (Rectified Linear Attention) Transformer (wip)
+## ReLA (Rectified Linear Attention) Transformer
 
 Implementation of a Transformer using <a href="https://arxiv.org/abs/2104.07012
 ">ReLA</a> (Rectified Linear Attention). It will also contain an attempt to combine the feedforward into the ReLA layer as memory key / values, as proposed in <a href="https://arxiv.org/abs/1907.01470">All Attention</a>, suggestion made by <a href="https://github.com/cfoster0">Charles Foster</a>.
@@ -29,6 +29,12 @@ model = ReLATransformer(
 
 x = torch.randint(0, 20000, (1, 1024))
 logits = model(x) # (1, 1024, 20000)
+```
+
+## Enwik8
+
+```bash
+$ python train.py
 ```
 
 ## Citations
