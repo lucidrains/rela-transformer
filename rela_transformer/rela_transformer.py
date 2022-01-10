@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange
 
@@ -34,7 +35,11 @@ class ReLA(nn.Module):
         self.norm = nn.LayerNorm(dim)
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-        self.to_out = nn.Linear(inner_dim, dim)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, dim),
+            nn.LayerNorm(dim)
+        )
 
     def forward(self, x):
         device = x.device
@@ -43,15 +48,17 @@ class ReLA(nn.Module):
 
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
-        sim = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
+
+        q = q * self.scale
+        sim = einsum('b h i d, b h j d -> b h i j', q, k)
 
         if self.causal:
             i, j = sim.shape[-2:]
             mask = torch.ones(i, j, device = device).triu_(1).bool()
-            mask_value = -torch.finfo(sim.dtype).max
-            sim = sim.masked_fill(mask, mask_value)
+            sim = sim.masked_fill(mask, 0.)
 
-        attn = sim.softmax(dim = -1)
+        # relu attention?
+        attn = F.relu(sim)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
