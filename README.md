@@ -1,2 +1,17 @@
-# rela-transformer
-Implementation of a Transformer using ReLA (Rectified Linear Attention) from https://arxiv.org/abs/2104.07012
+## ReLA (Rectified Linear Attention) Transformer (wip)
+
+Implementation of a Transformer using <a href="https://arxiv.org/abs/2104.07012
+">ReLA</a> (Rectified Linear Attention). It will also contain an attempt to combine the feedforward into the ReLA layer as memory key / values, as proposed in <a href="https://arxiv.org/abs/1907.01470">All Attention</a>, suggestion made by <a href="https://github.com/cfoster0">Charles Foster</a>.
+
+## Citations
+
+```bibtex
+@misc{zhang2021sparse,
+    title   = {Sparse Attention with Linear Units},
+    author  = {Biao Zhang and Ivan Titov and Rico Sennrich},
+    year    = {2021},
+    eprint  = {2104.07012},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CL}
+}
+```
