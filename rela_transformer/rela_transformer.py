@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
-from einops import rearrange
+from einops import rearrange, repeat
 
 # helper functions
 
@@ -25,7 +25,8 @@ class ReLA(nn.Module):
         dim,
         causal = True,
         dim_head = 64,
-        heads = 8
+        heads = 8,
+        num_memory_kv = 0
     ):
         super().__init__()
         self.heads = heads
@@ -36,29 +37,36 @@ class ReLA(nn.Module):
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
 
+        self.mem_k = nn.Parameter(torch.randn(num_memory_kv, inner_dim))
+        self.mem_v = nn.Parameter(torch.randn(num_memory_kv, inner_dim))
+
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
             nn.LayerNorm(dim)
         )
 
     def forward(self, x):
-        device = x.device
+        b, device = x.shape[0], x.device
         x = self.norm(x)
         h = self.heads
 
-        qkv = self.to_qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
+        q, k, v = self.to_qkv(x).chunk(3, dim = -1)
+
+        mem_k, mem_v = map(lambda t: repeat(t, 'n d -> b n d', b = b), (self.mem_k, self.mem_v))
+        k = torch.cat((mem_k, k), dim = 1)
+        v = torch.cat((mem_v, v), dim = 1)
+
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (q, k, v))
 
         q = q * self.scale
         sim = einsum('b h i d, b h j d -> b h i j', q, k)
 
-        if self.causal:
-            i, j = sim.shape[-2:]
-            mask = torch.ones(i, j, device = device).triu_(1).bool()
-            sim = sim.masked_fill(mask, 0.)
-
-        # relu attention?
         attn = F.relu(sim)
+
+        if self.causal:
+            i, j = attn.shape[-2:]
+            mask = torch.ones(i, j, device = device).triu_(j - i + 1).bool()
+            attn = attn.masked_fill(mask, 0.)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -75,7 +83,9 @@ class ReLATransformer(nn.Module):
         causal = True,
         heads = 8,
         dim_head = 64,
-        ff_mult = 4
+        num_memory_kv = 0,
+        no_ff = False,
+        ff_mult = 4,
     ):
         super().__init__()
         self.max_seq_len = max_seq_len
@@ -85,8 +95,8 @@ class ReLATransformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                ReLA(dim = dim, heads = heads, dim_head = dim_head),
-                FeedForward(dim = dim, mult = ff_mult)
+                ReLA(dim = dim, heads = heads, dim_head = dim_head, num_memory_kv = num_memory_kv),
+                FeedForward(dim = dim, mult = ff_mult) if not no_ff else None
             ]))
 
         self.to_logits = nn.Sequential(
@@ -102,6 +112,8 @@ class ReLATransformer(nn.Module):
 
         for attn, ff in self.layers:
             x = attn(x) + x
-            x = ff(x) + x
+
+            if exists(ff):
+                x = ff(x) + x
 
         return self.to_logits(x)
