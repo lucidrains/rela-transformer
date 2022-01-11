@@ -10,6 +10,23 @@ def exists(val):
 
 # classes
 
+class GatedRMSNorm(nn.Module):
+    def __init__(
+        self,
+        dim,
+        eps = 1e-8
+    ):
+        super().__init__()
+        self.scale = dim ** -0.5
+        self.eps = eps
+        self.to_gate = nn.Linear(dim, dim, bias = False)
+        self.g = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x):
+        norm = torch.norm(x, dim = -1, keepdim = True) * self.scale
+        normed_x = x / norm.clamp(min = self.eps) * self.g
+        return normed_x * self.to_gate(x).sigmoid()
+
 def FeedForward(dim, mult = 4):
     return nn.Sequential(
         nn.LayerNorm(dim),
@@ -33,7 +50,7 @@ class ReLA(nn.Module):
         inner_dim = dim_head * heads
         self.scale = dim_head ** -0.5
         self.causal = causal
-        self.norm = nn.LayerNorm(dim)
+        self.norm = GatedRMSNorm(dim)
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
 
@@ -42,7 +59,7 @@ class ReLA(nn.Module):
 
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
-            nn.LayerNorm(dim)
+            GatedRMSNorm(dim)
         )
 
     def forward(self, x):
