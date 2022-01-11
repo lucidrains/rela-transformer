@@ -15,7 +15,7 @@ $ pip install rela-transformer
 
 ```python
 import torch
-from rela_transformer.rela_transformer import ReLATransformer
+from rela_transformer import ReLATransformer
 
 model = ReLATransformer(
     num_tokens = 20000,
