@@ -62,7 +62,7 @@ class ReLA(nn.Module):
             GatedRMSNorm(dim)
         )
 
-    def forward(self, x):
+    def forward(self, x, mask = None):
         b, device = x.shape[0], x.device
         x = self.norm(x)
         h = self.heads
@@ -80,10 +80,14 @@ class ReLA(nn.Module):
 
         attn = F.relu(sim)
 
+        if exists(mask):
+            mask = rearrange(mask, 'b j -> b 1 1 j')
+            attn = attn.masked_fill(~mask, 0.)
+
         if self.causal:
             i, j = attn.shape[-2:]
-            mask = torch.ones(i, j, device = device).triu_(j - i + 1).bool()
-            attn = attn.masked_fill(mask, 0.)
+            causal_mask = torch.ones(i, j, device = device).triu_(j - i + 1).bool()
+            attn = attn.masked_fill(causal_mask, 0.)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -128,7 +132,7 @@ class ReLATransformer(nn.Module):
         x = x + rearrange(pos_emb, 'n d -> 1 n d')
 
         for attn, ff in self.layers:
-            x = attn(x) + x
+            x = attn(x, mask = mask) + x
 
             if exists(ff):
                 x = ff(x) + x

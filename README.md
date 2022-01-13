@@ -23,12 +23,13 @@ model = ReLATransformer(
     depth = 8,
     max_seq_len = 1024,
     dim_head = 64,
-    heads = 8,
-    causal = True
+    heads = 8
 )
 
 x = torch.randint(0, 20000, (1, 1024))
-logits = model(x) # (1, 1024, 20000)
+mask = torch.ones(1, 1024).bool()
+
+logits = model(x, mask = mask) # (1, 1024, 20000)
 ```
 
 ## Enwik8
