@@ -43,13 +43,15 @@ class ReLA(nn.Module):
         causal = True,
         dim_head = 64,
         heads = 8,
-        num_memory_kv = 0
+        num_memory_kv = 0,
+        relu_squared = False
     ):
         super().__init__()
         self.heads = heads
         inner_dim = dim_head * heads
         self.scale = dim_head ** -0.5
         self.causal = causal
+        self.relu_squared = relu_squared
         self.norm = GatedRMSNorm(dim)
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
@@ -80,6 +82,9 @@ class ReLA(nn.Module):
 
         attn = F.relu(sim)
 
+        if self.relu_squared:
+            attn = attn ** 2
+
         if exists(mask):
             mask = rearrange(mask, 'b j -> b 1 1 j')
             attn = attn.masked_fill(~mask, 0.)
@@ -107,6 +112,7 @@ class ReLATransformer(nn.Module):
         num_memory_kv = 0,
         no_ff = False,
         ff_mult = 4,
+        relu_squared = False
     ):
         super().__init__()
         self.max_seq_len = max_seq_len
@@ -116,7 +122,7 @@ class ReLATransformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                ReLA(dim = dim, heads = heads, dim_head = dim_head, num_memory_kv = num_memory_kv, causal = causal),
+                ReLA(dim = dim, relu_squared = relu_squared, heads = heads, dim_head = dim_head, num_memory_kv = num_memory_kv, causal = causal),
                 FeedForward(dim = dim, mult = ff_mult) if not no_ff else None
             ]))
 
