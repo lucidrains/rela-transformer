@@ -19,13 +19,13 @@ class GatedRMSNorm(nn.Module):
         super().__init__()
         self.scale = dim ** -0.5
         self.eps = eps
-        self.to_gate = nn.Linear(dim, dim, bias = False)
+        self.w = nn.Parameter(torch.ones(dim))
         self.g = nn.Parameter(torch.ones(dim))
 
     def forward(self, x):
         norm = torch.norm(x, dim = -1, keepdim = True) * self.scale
         normed_x = x / norm.clamp(min = self.eps) * self.g
-        return normed_x * self.to_gate(x).sigmoid()
+        return normed_x * (x * self.w).sigmoid()
 
 def FeedForward(dim, mult = 4):
     return nn.Sequential(
@@ -59,9 +59,9 @@ class ReLA(nn.Module):
         self.mem_k = nn.Parameter(torch.randn(num_memory_kv, inner_dim))
         self.mem_v = nn.Parameter(torch.randn(num_memory_kv, inner_dim))
 
+        self.norm_values = GatedRMSNorm(dim_head)
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
-            GatedRMSNorm(dim)
         )
 
     def forward(self, x, mask = None):
@@ -95,6 +95,8 @@ class ReLA(nn.Module):
             attn = attn.masked_fill(causal_mask, 0.)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
+        out = self.norm_values(out)
+
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
